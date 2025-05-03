@@ -1,5 +1,5 @@
 from pithon.parser.simpleparser import SimpleParser
-
+from pithon.evaluator.evaluator import empty_env, evaluate
 
 def main():
     parser = SimpleParser()
