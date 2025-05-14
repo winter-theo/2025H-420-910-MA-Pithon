@@ -7,13 +7,13 @@ def main():
     parser = SimpleParser()
     env = empty_env()
     
-    print("Hello, Pithon CLI!")
+    print("🐍 Pithon CLI!")
 
     while True:
         try:
             line = input("> ").strip()
             if line.lower() in ("exit", "quit"):
-                print("Exiting Pithon CLI.")
+                print("Au revoir 👋.")
                 break
             if not line:
                 continue
@@ -22,4 +22,4 @@ def main():
             if not isinstance(tree, PiAssignment):
                 print(result)
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Erreur: {e}")
