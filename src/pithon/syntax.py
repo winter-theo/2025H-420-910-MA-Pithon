@@ -1,8 +1,16 @@
 from dataclasses import dataclass
 
 @dataclass
-class PiLiteral:
-    value: int
+class PiNone:
+    value: None
+
+@dataclass
+class PiNumber:
+    value: float
+
+@dataclass
+class PiBool:
+    value: bool
 
 @dataclass
 class PiVariable:
@@ -10,15 +18,61 @@ class PiVariable:
 
 @dataclass
 class PiBinaryOperation:
-    left: 'Expression'
+    left: 'PiExpression'
     operator: str
-    right: 'Expression'
+    right: 'PiExpression'
 
 @dataclass
 class PiAssignment:
     name: str
-    value: 'Expression'
+    value: 'PiExpression'
 
-Expression = PiLiteral | PiVariable | PiBinaryOperation
+@dataclass
+class PiIfThenElse:
+    condition: 'PiExpression'
+    then_branch: list['PiStatement']
+    else_branch: list['PiStatement']
 
-PiSyntaxTree = PiAssignment | Expression
+@dataclass
+class PiNot:
+    operand: 'PiExpression'
+
+@dataclass
+class PiAnd:
+    left: 'PiExpression'
+    right: 'PiExpression'
+
+@dataclass
+class PiOr:
+    left: 'PiExpression'
+    right: 'PiExpression'
+
+@dataclass
+class PiWhile:
+    condition: 'PiExpression'
+    body: list['PiStatement']
+
+@dataclass
+class PiPrint:
+    value: 'PiExpression'
+
+PiValue = PiNumber | PiBool | PiNone
+
+PiExpression = (
+    PiValue
+    | PiVariable
+    | PiBinaryOperation
+    | PiNot
+    | PiAnd
+    | PiOr
+    | PiPrint
+)
+
+PiStatement = (
+    PiAssignment
+    | PiIfThenElse
+    | PiWhile
+    | PiExpression
+)
+
+PiProgram = list[PiStatement]
