@@ -2,7 +2,9 @@ import ast
 
 from pithon.syntax import (
     PiAssignment, PiBinaryOperation, PiNumber, PiBool, PiVariable, PiIfThenElse,
-    PiNot, PiAnd, PiOr, PiWhile, PiPrint, PiExpression, PiNone
+    PiNot, PiAnd, PiOr, PiWhile, PiExpression, PiNone, PiList, PiTuple,
+    PiString, PiFunctionDef, PiFunctionCall, PiFor, PiBreak, PiContinue, PiIn,
+    PiReturn, PiSubscript
 )
 
 class SimpleParser(ast.NodeVisitor):
@@ -44,8 +46,18 @@ class SimpleParser(ast.NodeVisitor):
             return PiBool(value=node.value)
         elif isinstance(node.value, int) or isinstance(node.value, float):
             return PiNumber(value=node.value)
+        elif isinstance(node.value, str):
+            return PiString(value=node.value)
         else:
-            raise ValueError("Seuls les littéraux numériques, booléens ou None sont autorisés.")
+            raise ValueError("Seuls les littéraux numériques, booléens, chaînes ou None sont autorisés.")
+
+    def visit_List(self, node: ast.List) -> PiList:
+        elements = [self.visit(elt) for elt in node.elts]
+        return PiList(elements=elements)
+
+    def visit_Tuple(self, node: ast.Tuple) -> PiTuple:
+        elements = tuple(self.visit(elt) for elt in node.elts)
+        return PiTuple(elements=elements)
 
     def visit_If(self, node: ast.If) -> PiIfThenElse:
         condition = self.visit(node.test)
@@ -84,22 +96,57 @@ class SimpleParser(ast.NodeVisitor):
         body = [self.visit(stmt) for stmt in node.body]
         return PiWhile(condition=condition, body=body)
 
-    def visit_Call(self, node: ast.Call) -> PiExpression:
-        if isinstance(node.func, ast.Name) and node.func.id == "print":
-            if len(node.args) != 1:
-                raise ValueError("print prend exactement un argument.")
-            value = self.visit(node.args[0])
-            return PiPrint(value=value)
-        else:
-            raise ValueError("Seule la fonction print est supportée.")
+    def visit_For(self, node: ast.For) -> PiFor:
+        if not isinstance(node.target, ast.Name):
+            raise ValueError("La variable de boucle doit être un nom simple.")
+        var = node.target.id
+        iterable = self.visit(node.iter)
+        body = [self.visit(stmt) for stmt in node.body]
+        return PiFor(var=var, iterable=iterable, body=body)
 
-    def visit_Compare(self, node: ast.Compare) -> PiBinaryOperation:
-        if len(node.ops) != 1 or len(node.comparators) != 1:
+    def visit_Break(self, node: ast.Break) -> PiBreak:
+        return PiBreak()
+
+    def visit_Continue(self, node: ast.Continue) -> PiContinue:
+        return PiContinue()
+
+    def visit_Compare(self, node: ast.Compare) -> PiExpression:
+        if len(node.ops) == 1 and isinstance(node.ops[0], ast.In):
+            element = self.visit(node.left)
+            container = self.visit(node.comparators[0])
+            return PiIn(element=element, container=container)
+        elif len(node.ops) == 1:
+            left = self.visit(node.left)
+            right = self.visit(node.comparators[0])
+            operator = self.operator_symbol(node.ops[0])
+            return PiBinaryOperation(left=left, operator=operator, right=right)
+        else:
             raise ValueError("Seules les comparaisons simples sont supportées.")
-        left = self.visit(node.left)
-        right = self.visit(node.comparators[0])
-        operator = self.operator_symbol(node.ops[0])
-        return PiBinaryOperation(left=left, operator=operator, right=right)
+
+    def visit_Call(self, node: ast.Call) -> PiExpression:
+        func = self.visit(node.func)
+        args = [self.visit(arg) for arg in node.args]
+        return PiFunctionCall(function=func, args=args)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> PiFunctionDef:
+        name = node.name
+        arg_names = []
+        vararg = None
+        for arg in node.args.args:
+            arg_names.append(arg.arg)
+        if node.args.vararg:
+            vararg = node.args.vararg.arg
+        body = [self.visit(stmt) for stmt in node.body]
+        return PiFunctionDef(name=name, arg_names=arg_names, vararg=vararg, body=body)
+
+    def visit_Return(self, node: ast.Return) -> PiReturn:
+        value = self.visit(node.value) if node.value else PiNone(value=None)
+        return PiReturn(value=value)
+
+    def visit_Subscript(self, node: ast.Subscript) -> PiSubscript:
+        collection = self.visit(node.value)
+        index = self.visit(node.slice)
+        return PiSubscript(collection=collection, index=index)
 
     def operator_symbol(self, op) -> str:
         if isinstance(op, ast.Add):
@@ -124,6 +171,8 @@ class SimpleParser(ast.NodeVisitor):
             return '>'
         elif isinstance(op, ast.GtE):
             return '>='
+        elif isinstance(op, ast.In):
+            return 'in'
         else:
             raise ValueError(f"Opérateur non pris en charge {op}.")
 

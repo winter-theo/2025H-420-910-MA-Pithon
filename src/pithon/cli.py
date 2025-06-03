@@ -1,13 +1,13 @@
 from pathlib import Path
 import sys
 import os
-from pithon.evaluator.evaluator import empty_env, evaluate
+from pithon.evaluator.evaluator import initial_env, evaluate
 from pithon.parser.simpleparser import SimpleParser
 from pithon.syntax import PiAssignment
 
 def run_cli():
     parser = SimpleParser()
-    env = empty_env()
+    env = initial_env()
     
     print("🐍 Pithon CLI!")
 
@@ -28,7 +28,7 @@ def run_cli():
 
 def run_file(filename):
     parser = SimpleParser()
-    env = empty_env()
+    env = initial_env()
     with open(filename, "r", encoding="utf-8") as f:
         source = f.read()
     tree = parser.parse(source)
