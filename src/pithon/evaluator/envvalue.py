@@ -1,12 +1,16 @@
 from typing import Union, List, Tuple, Callable
+from dataclasses import dataclass
 from pithon.syntax import (
     PiNumber, PiBool, PiNone, PiString, PiFunctionDef,
 )
+from pithon.evaluator.envframe import EnvFrame
 
+PrimitiveFunction = Callable[..., 'EnvValue']
+
+@dataclass
 class FunctionClosure:
-    def __init__(self, funcdef: PiFunctionDef, closure_env: list[tuple[str, 'EnvValue']]):
-        self.funcdef = funcdef
-        self.closure_env = closure_env.copy()
+    funcdef: PiFunctionDef
+    closure_env: EnvFrame
 
 # EnvValue can be a value, a closure, or a primitive function (callable)
 EnvValue = Union[
@@ -17,5 +21,5 @@ EnvValue = Union[
     List['EnvValue'],
     Tuple['EnvValue', ...],
     FunctionClosure,
-    Callable[..., 'EnvValue']  # primitive functions
+    PrimitiveFunction
 ]

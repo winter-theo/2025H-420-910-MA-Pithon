@@ -35,8 +35,8 @@ def run_file(filename):
     evaluate(tree, env)
 
 def run_tests():
-    test_dir = Path("test")
-    files = [f for f in os.listdir(test_dir) if f.startswith("test-") and f.endswith(".py")]
+    test_dir = Path("tests/fixtures/programs")
+    files = [f for f in os.listdir(test_dir) if f.endswith(".py")]
     if not files:
         print("Aucun fichier de test trouvé.")
         return
