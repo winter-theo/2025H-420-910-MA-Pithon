@@ -80,14 +80,17 @@ class SimpleParser(ast.NodeVisitor):
             raise ValueError("Seul l'opérateur 'not' unaire est supporté.")
 
     def visit_BoolOp(self, node: ast.BoolOp) -> PiExpression:
+        # Support left-associative nesting for multiple operands
         if isinstance(node.op, ast.And):
-            left = self.visit(node.values[0])
-            right = self.visit(node.values[1])
-            return PiAnd(left=left, right=right)
+            expr = self.visit(node.values[0])
+            for value in node.values[1:]:
+                expr = PiAnd(left=expr, right=self.visit(value))
+            return expr
         elif isinstance(node.op, ast.Or):
-            left = self.visit(node.values[0])
-            right = self.visit(node.values[1])
-            return PiOr(left=left, right=right)
+            expr = self.visit(node.values[0])
+            for value in node.values[1:]:
+                expr = PiOr(left=expr, right=self.visit(value))
+            return expr
         else:
             raise ValueError("Seuls les opérateurs 'and' et 'or' sont supportés.")
 

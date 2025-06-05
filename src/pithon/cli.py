@@ -5,11 +5,12 @@ from pithon.evaluator.evaluator import initial_env, evaluate
 from pithon.parser.simpleparser import SimpleParser
 from pithon.syntax import PiAssignment
 
-def run_cli():
+def run_cli(ast_only=False):
     parser = SimpleParser()
     env = initial_env()
     
-    print("🐍 Pithon CLI!")
+    mode = " (mode AST)" if ast_only else ""
+    print(f"🐍 Pithon CLI!{mode}")
 
     while True:
         try:
@@ -20,6 +21,9 @@ def run_cli():
             if not line:
                 continue
             tree = parser.parse(line)
+            if ast_only:
+                print(tree)
+                continue
             result = evaluate(tree, env)
             if not isinstance(tree, PiAssignment):
                 print(result)
@@ -52,6 +56,8 @@ def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == "--test":
             run_tests()
+        elif sys.argv[1] == "--ast":
+            run_cli(ast_only=True)
         else:
             run_file(sys.argv[1])
     else:
