@@ -4,7 +4,7 @@ from pithon.syntax import (
     PiAssignment, PiBinaryOperation, PiNumber, PiBool, PiVariable, PiIfThenElse,
     PiNot, PiAnd, PiOr, PiWhile, PiExpression, PiNone, PiList, PiTuple,
     PiString, PiFunctionDef, PiFunctionCall, PiFor, PiBreak, PiContinue, PiIn,
-    PiReturn, PiSubscript
+    PiReturn, PiSubscript, PiClassDef, PiAttribute, PiAttributeAssignment
 )
 
 class SimpleParser(ast.NodeVisitor):
@@ -20,15 +20,21 @@ class SimpleParser(ast.NodeVisitor):
     def visit_Expr(self, node: ast.Expr) -> PiExpression:
         return self.visit(node.value)
 
-    def visit_Assign(self, node: ast.Assign) -> PiAssignment:
+    def visit_Assign(self, node: ast.Assign) -> PiAssignment | PiAttributeAssignment:
         if len(node.targets) != 1:
             raise ValueError("Seule l'affectation simple est prise en charge.")
         target = node.targets[0]
-        if not isinstance(target, ast.Name):
-            raise ValueError("Les affectations ne peuvent être faites qu'à des variables.")
-        name = target.id
         value = self.visit(node.value)
-        return PiAssignment(name=name, value=value)
+        
+        if isinstance(target, ast.Name):
+            # Simple variable assignment
+            return PiAssignment(name=target.id, value=value)
+        elif isinstance(target, ast.Attribute):
+            # Attribute assignment
+            obj = self.visit(target.value)
+            return PiAttributeAssignment(object=obj, attr=target.attr, value=value)
+        else:
+            raise ValueError("Les affectations ne peuvent être faites qu'à des variables ou des attributs.")
 
     def visit_BinOp(self, node: ast.BinOp) -> PiBinaryOperation:
         left = self.visit(node.left)
@@ -150,6 +156,21 @@ class SimpleParser(ast.NodeVisitor):
         collection = self.visit(node.value)
         index = self.visit(node.slice)
         return PiSubscript(collection=collection, index=index)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> PiClassDef:
+        name = node.name
+        methods = []
+        for stmt in node.body:
+            if isinstance(stmt, ast.FunctionDef):
+                methods.append(self.visit_FunctionDef(stmt))
+            else:
+                raise ValueError("Seules les définitions de méthodes sont autorisées dans les classes.")
+        return PiClassDef(name=name, methods=methods)
+
+    def visit_Attribute(self, node: ast.Attribute) -> PiAttribute:
+        obj = self.visit(node.value)
+        attr = node.attr
+        return PiAttribute(object=obj, attr=attr)
 
     def operator_symbol(self, op) -> str:
         if isinstance(op, ast.Add):

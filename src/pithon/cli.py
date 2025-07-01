@@ -30,12 +30,15 @@ def run_cli(ast_only=False):
         except Exception as e:
             print(f"Erreur: {e}")
 
-def run_file(filename):
+def run_file(filename, ast_only=False):
     parser = SimpleParser()
     env = initial_env()
     with open(filename, "r", encoding="utf-8") as f:
         source = f.read()
     tree = parser.parse(source)
+    if ast_only:
+        print(tree)
+        return
     evaluate(tree, env)
 
 def run_tests():
@@ -57,8 +60,11 @@ def main():
         if sys.argv[1] == "--test":
             run_tests()
         elif sys.argv[1] == "--ast":
-            run_cli(ast_only=True)
+            if len(sys.argv) > 2:
+                run_file(sys.argv[2], ast_only=True)
+            else:
+                run_cli(ast_only=True)
         else:
-            run_file(sys.argv[1])
+            run_file(sys.argv[1], ast_only=False)
     else:
         run_cli()

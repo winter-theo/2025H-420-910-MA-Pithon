@@ -104,6 +104,22 @@ class PiSubscript:
     collection: 'PiExpression'
     index: 'PiExpression'
 
+@dataclass
+class PiClassDef:
+    name: str
+    methods: list['PiFunctionDef']
+
+@dataclass
+class PiAttribute:
+    object: 'PiExpression'
+    attr: str
+
+@dataclass
+class PiAttributeAssignment:
+    object: 'PiExpression'
+    attr: str
+    value: 'PiExpression'
+
 PiValue = PiNumber | PiBool | PiNone | PiList | PiTuple | PiString
 
 PiExpression = (
@@ -116,16 +132,20 @@ PiExpression = (
     | PiFunctionCall
     | PiIn
     | PiSubscript
+    | PiAttribute
+    | PiAttributeAssignment
 )
 
 PiStatement = (
     PiAssignment
+    | PiAttributeAssignment
     | PiIfThenElse
     | PiWhile
     | PiFor
     | PiBreak
     | PiContinue
     | PiFunctionDef
+    | PiClassDef
     | PiReturn
     | PiExpression
 )
