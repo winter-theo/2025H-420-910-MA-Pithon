@@ -3,9 +3,9 @@ from pithon.evaluator.primitive import check_type, get_primitive_dict
 from pithon.syntax import (
     PiAssignment, PiBinaryOperation, PiNumber, PiBool, PiStatement, PiProgram, PiSubscript, PiVariable,
     PiIfThenElse, PiNot, PiAnd, PiOr, PiWhile, PiNone, PiList, PiTuple, PiString,
-    PiFunctionDef, PiFunctionCall, PiFor, PiBreak, PiContinue, PiIn, PiReturn
+    PiFunctionDef, PiFunctionCall, PiFor, PiBreak, PiContinue, PiIn, PiReturn, PiClassDef,PiAttribute,PiAttributeAssignment
 )
-from pithon.evaluator.envvalue import EnvValue, VFunctionClosure, VList, VNone, VTuple, VNumber, VBool, VString
+from pithon.evaluator.envvalue import EnvValue, VFunctionClosure, VList, VNone, VTuple, VNumber, VBool, VString, VClassDef, VMethodClosure, VObject
 
 
 def initial_env() -> EnvFrame:
@@ -133,9 +133,38 @@ def evaluate_stmt(node: PiStatement, env: EnvFrame) -> EnvValue:
 
     elif isinstance(node, PiSubscript):
         return _evaluate_subscript(node, env)
+    
+    elif isinstance(node, PiClassDef):
+        class_methodes = {}
+        for method in node.methods:
+            closure = VFunctionClosure(method, env)
+            class_methodes[method.name] = closure
+        class_def = VClassDef(name=node.name, methods=class_methodes)
+        # Insère la classe dans l'environnement
+        insert(env, node.name, class_def)
+        return VNone(value=None)
+    
+    elif isinstance(node, PiAttribute):            # lecture d'attribut
+        obj_val = evaluate_stmt(node.object, env)
+
+        # attribut d’instance
+        if node.attr in obj_val.attributes:
+            return obj_val.attributes[node.attr]
+        # Sinon : méthode de classe -> on renvoie une VMethodClosure liée
+        if node.attr in obj_val.class_def.methods:
+            meth = obj_val.class_def.methods[node.attr]
+            return VMethodClosure(function=meth, instance=obj_val)
+        
+    elif isinstance(node, PiAttributeAssignment):  # écriture d'attribut
+        obj_val = evaluate_stmt(node.object, env)
+        value_val = evaluate_stmt(node.value, env)
+
+        obj_val.attributes[node.attr] = value_val
+        return value_val
 
     else:
         raise TypeError(f"Type de nœud non supporté : {type(node)}")
+    
 
 def _check_valid_piandor_type(obj):
     """Vérifie que le type est valide pour 'and'/'or'."""
@@ -206,36 +235,77 @@ def _evaluate_in(node: PiIn, env: EnvFrame) -> EnvValue:
     else:
         raise TypeError("'in' n'est supporté que pour les listes et chaînes.")
 
+def _call_method(method: VMethodClosure) -> EnvValue:
+    """Appelle une méthode d'un objet.
+    utilisée également pour la fonction __init__ d'une classe."""
+    funcdef     = method.function.funcdef
+    closure_env = method.function.closure_env
+    self_obj    = method.instance
+
+    call_env = EnvFrame(parent=closure_env)
+    call_env.insert("self", self_obj)
+
+    # exécution du corps de la méthode
+    # si une instruction return est rencontrée, il faut intercepter l'exception
+    try:
+        for stmt in funcdef.body:
+            evaluate_stmt(stmt, call_env)
+    except ReturnException as ret:
+        return ret.value          # on récupère la valeur retournée
+    
+    # aucune instruction retournée comme pour les appels de fonction
+    return VNone(value=None)      
+
 def _evaluate_function_call(node: PiFunctionCall, env: EnvFrame) -> EnvValue:
     """Évalue un appel de fonction (primitive ou définie par l'utilisateur)."""
+
     func_val = evaluate_stmt(node.function, env)
     args = [evaluate_stmt(arg, env) for arg in node.args]
+
     # Fonction primitive
     if callable(func_val):
         return func_val(args)
     # Fonction utilisateur
-    if not isinstance(func_val, VFunctionClosure):
-        raise TypeError("Tentative d'appel d'un objet non-fonction.")
-    funcdef = func_val.funcdef
-    closure_env = func_val.closure_env
-    call_env = EnvFrame(parent=closure_env)
-    for i, arg_name in enumerate(funcdef.arg_names):
-        if i < len(args):
-            call_env.insert(arg_name, args[i])
-        else:
-            raise TypeError("Argument manquant pour la fonction.")
-    if funcdef.vararg:
-        varargs = VList(args[len(funcdef.arg_names):])
-        call_env.insert(funcdef.vararg, varargs)
-    elif len(args) > len(funcdef.arg_names):
-        raise TypeError("Trop d'arguments pour la fonction.")
-    result = VNone(value=None)
-    try:
-        for stmt in funcdef.body:
-            result = evaluate_stmt(stmt, call_env)
-    except ReturnException as ret:
-        return ret.value
-    return result
+
+    if isinstance(func_val, VFunctionClosure):
+        funcdef = func_val.funcdef
+        closure_env = func_val.closure_env
+        call_env = EnvFrame(parent=closure_env)
+        for i, arg_name in enumerate(funcdef.arg_names):
+            if i < len(args):
+                call_env.insert(arg_name, args[i])
+            else:
+                raise TypeError("Argument manquant pour la fonction.")
+        if funcdef.vararg:
+            varargs = VList(args[len(funcdef.arg_names):])
+            call_env.insert(funcdef.vararg, varargs)
+        elif len(args) > len(funcdef.arg_names):
+            raise TypeError("Trop d'arguments pour la fonction.")
+        result = VNone(value=None)
+        try:
+            for stmt in funcdef.body:
+                result = evaluate_stmt(stmt, call_env)
+        except ReturnException as ret:
+            return ret.value
+        return result
+    
+    elif isinstance(func_val, VClassDef):
+        # création de l'instance
+        new_instance = VObject(class_def=func_val, attributes={})
+
+        # appel de la méthode __init__ si elle existe
+        init_closure = func_val.methods.get("__init__")
+        if init_closure:
+            init_methodclosure = VMethodClosure(
+                function      = init_closure,
+                instance     = new_instance
+            )
+            _call_method(init_methodclosure)   # on ignore la valeur retournée
+
+        return new_instance
+    
+    elif isinstance(func_val, VMethodClosure):
+        return _call_method(func_val)
 
 class ReturnException(Exception):
     """Exception pour retourner une valeur depuis une fonction."""
