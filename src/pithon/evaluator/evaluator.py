@@ -154,8 +154,11 @@ def evaluate_stmt(node: PiStatement, env: EnvFrame) -> EnvValue:
         if node.attr in obj_val.class_def.methods:
             meth = obj_val.class_def.methods[node.attr]
             return VMethodClosure(function=meth, instance=obj_val)
+
+        raise AttributeError(f"Attribut ou méthode '{node.attr}' non trouvé dans l'objet {obj_val}.")
         
     elif isinstance(node, PiAttributeAssignment):  # écriture d'attribut
+
         obj_val = evaluate_stmt(node.object, env)
         value_val = evaluate_stmt(node.value, env)
 
